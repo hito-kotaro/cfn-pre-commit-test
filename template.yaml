@@ -6,7 +6,8 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: MyPythonLambdaFunction
-      Code: lambda_function
+      # LocalCodePath: ./lambda_function/
+      Code: ./lambda_function/
       Handler: index.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: python3.9

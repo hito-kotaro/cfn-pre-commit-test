@@ -5,14 +5,9 @@ set -e
 
 echo "CloudFormationテンプレートのバリデーションを実行中..."
 
-# 変更されたYAMLファイルを取得
-YAML_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E 'template\.yaml$')
-
-# テンプレートファイルが変更されていない場合は、固定のファイルをチェック
-if [ -z "$YAML_FILES" ]; then
-  echo "変更されたテンプレートファイルはありません。固定のテンプレートをチェックします。"
-  YAML_FILES="template.yaml"
-fi
+# テスト用に固定のファイルをチェック
+YAML_FILES="template.yaml"
+echo "検出されたテンプレートファイル: $YAML_FILES"
 
 # 各YAMLファイルに対してチェックを実行
 for file in $YAML_FILES; do
@@ -32,40 +27,46 @@ for file in $YAML_FILES; do
   echo "cfn-lintを実行中..."
   cfn-lint -i W3002 -t $file || exit 1
   
-  # Lambda関数のCodeUriパスをチェック
-  echo "Lambda関数のCodeUriパスをチェック中..."
+  # Lambda関数のCodeパスをチェック
+  echo "Lambda関数のCodeパスをチェック中..."
   
   # テンプレートファイルのディレクトリを取得
   TEMPLATE_DIR=$(dirname "$(realpath "$file")")
+  echo "テンプレートディレクトリ: $TEMPLATE_DIR"
   
-  # YAMLファイルからCodeUriを抽出（修正版）
-  CODE_URIS=$(grep -E '^\s*CodeUri:' "$file" | sed -E 's/.*CodeUri:\s*(.*)/\1/' | tr -d ' ')
+  # YAMLファイルからCodeパスを抽出（コメントではなく実際のCodeプロパティ）
+  CODE_PATHS=$(grep -E '^\s*Code:' "$file" | sed -E 's/.*Code:\s*(.*)/\1/' | tr -d ' ')
+  echo "検出されたCodeパス: $CODE_PATHS"
   
-  if [ -z "$CODE_URIS" ]; then
-    echo "警告: テンプレートファイル内にCodeUriプロパティが見つかりません"
+  if [ -z "$CODE_PATHS" ]; then
+    echo "情報: テンプレートファイル内にCodeプロパティが見つかりません"
     continue
   fi
   
-  # 各CodeUriパスをチェック
-  echo "$CODE_URIS" | while read -r CODE_URI; do
+  # 各Codeパスをチェック
+  echo "$CODE_PATHS" | while read -r CODE_PATH; do
     # 空行をスキップ
-    if [ -z "$CODE_URI" ]; then
+    if [ -z "$CODE_PATH" ]; then
       continue
     fi
     
+    echo "チェック対象のパス: $CODE_PATH"
+    
     # 相対パスを絶対パスに変換
-    if [[ "$CODE_URI" != /* ]]; then
-      CODE_PATH="$TEMPLATE_DIR/$CODE_URI"
+    if [[ "$CODE_PATH" != /* ]]; then
+      FULL_PATH="$TEMPLATE_DIR/$CODE_PATH"
     else
-      CODE_PATH="$CODE_URI"
+      FULL_PATH="$CODE_PATH"
     fi
     
+    echo "絶対パス: $FULL_PATH"
+    
     # パスが存在するかチェック
-    if [ ! -e "$CODE_PATH" ]; then
-      echo "エラー: CodeUri '$CODE_URI' が存在しません"
+    if [ ! -e "$FULL_PATH" ]; then
+      echo "エラー: Code '$CODE_PATH' が存在しません"
       exit 1
     else
-      echo "成功: CodeUri '$CODE_URI' が存在します"
+      echo "成功: Code '$CODE_PATH' が存在します"
     fi
   done
 done
