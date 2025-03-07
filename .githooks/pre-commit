@@ -5,9 +5,14 @@ set -e
 
 echo "CloudFormationテンプレートのバリデーションを実行中..."
 
-# テスト用に固定のファイルをチェック
-YAML_FILES="template.yaml"
-echo "検出されたテンプレートファイル: $YAML_FILES"
+# すべてのYAMLファイルを検索
+YAML_FILES=$(find . -name "*.yaml" -o -name "*.yml" | grep -v "packaged.yaml")
+echo "検出されたYAMLファイル: $YAML_FILES"
+
+if [ -z "$YAML_FILES" ]; then
+  echo "YAMLファイルが見つかりません。スキップします。"
+  exit 0
+fi
 
 # 各YAMLファイルに対してチェックを実行
 for file in $YAML_FILES; do
@@ -18,6 +23,12 @@ for file in $YAML_FILES; do
   fi
 
   echo "ファイルをチェック中: $file"
+  
+  # CloudFormationテンプレートかどうかを確認
+  if ! grep -q "AWSTemplateFormatVersion\|Transform:" "$file"; then
+    echo "情報: ファイル '$file' はCloudFormationテンプレートではないようです。スキップします。"
+    continue
+  fi
   
   # CloudFormation validate-templateでバリデーション
   echo "CloudFormation validate-templateを実行中..."
@@ -39,6 +50,38 @@ for file in $YAML_FILES; do
   echo "検出されたCodeパス: $CODE_PATHS"
   
   if [ -z "$CODE_PATHS" ]; then
+    # ネストされたテンプレートの場合は、TemplateURLプロパティを検索
+    TEMPLATE_URLS=$(grep -E '^\s*TemplateURL:' "$file" | sed -E 's/.*TemplateURL:\s*(.*)/\1/' | tr -d ' ')
+    
+    if [ -n "$TEMPLATE_URLS" ]; then
+      echo "ネストされたテンプレートを検出しました。"
+      
+      # 各TemplateURLをチェック
+      echo "$TEMPLATE_URLS" | while read -r TEMPLATE_URL; do
+        # ローカルファイルパスの場合
+        if [[ "$TEMPLATE_URL" == ./* ]]; then
+          NESTED_TEMPLATE="$TEMPLATE_DIR/$TEMPLATE_URL"
+          echo "ネストされたテンプレートをチェック中: $NESTED_TEMPLATE"
+          
+          if [ -f "$NESTED_TEMPLATE" ]; then
+            echo "ネストされたテンプレートが存在します: $NESTED_TEMPLATE"
+            
+            # ネストされたテンプレートに対して再帰的にチェック
+            # CloudFormation validate-template
+            echo "ネストされたテンプレートのバリデーションを実行中..."
+            aws cloudformation validate-template --template-body file://$NESTED_TEMPLATE || exit 1
+            
+            # cfn-lint
+            echo "ネストされたテンプレートのlintチェックを実行中..."
+            cfn-lint -i W3002 -t $NESTED_TEMPLATE || exit 1
+          else
+            echo "エラー: ネストされたテンプレート '$NESTED_TEMPLATE' が存在しません"
+            exit 1
+          fi
+        fi
+      done
+    fi
+    
     echo "情報: テンプレートファイル内にCodeプロパティが見つかりません"
     continue
   fi

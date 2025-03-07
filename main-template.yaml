@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Main CloudFormation template with nested template"
+
+Resources:
+  MainLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: MainPythonLambdaFunction
+      Code: ./lambda_function/
+      Handler: index.lambda_handler
+      Role: !GetAtt MainLambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 30
+      MemorySize: 128
+
+  MainLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  NestedStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./nested-template.yaml
+
+Outputs:
+  MainLambdaFunctionArn:
+    Description: ARN of the main Lambda function
+    Value: !GetAtt MainLambdaFunction.Arn
+  NestedStackOutput:
+    Description: Output from the nested stack
+    Value: !GetAtt NestedStack.Outputs.NestedLambdaFunctionArn

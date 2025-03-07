@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Nested CloudFormation template for Python Lambda function"
+
+Resources:
+  NestedLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: NestedPythonLambdaFunction
+      Code: ./lambda_function/
+      Handler: index.lambda_handler
+      Role: !GetAtt NestedLambdaExecutionRole.Arn
+      Runtime: python3.9
+      Timeout: 30
+      MemorySize: 128
+
+  NestedLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+Outputs:
+  NestedLambdaFunctionArn:
+    Description: ARN of the nested Lambda function
+    Value: !GetAtt NestedLambdaFunction.Arn

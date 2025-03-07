@@ -6,7 +6,9 @@
 
 ```
 .
-├── template.yaml                # CloudFormationテンプレート
+├── template.yaml                # 基本的なCloudFormationテンプレート
+├── main-template.yaml           # ネストされたテンプレートを含むメインテンプレート
+├── nested-template.yaml         # ネストされたテンプレート
 ├── lambda_function/             # Lambda関数のコードディレクトリ
 │   └── index.py                 # Lambda関数のメインコード
 ├── .githooks/                   # Gitフックディレクトリ
@@ -33,6 +35,9 @@ git config core.hooksPath .githooks
 - AWS CloudFormation validate-template コマンドによるテンプレートの検証
 - cfn-lint によるテンプレートの lint チェック（W3002 警告は無視）
 - Lambda 関数の Code パスが存在するかのチェック
+- ネストされたテンプレート（TemplateURL）の検証とチェック
+
+pre-commit フックは、プロジェクト内のすべての YAML ファイルを検索し、CloudFormation テンプレートを自動的に検出します。
 
 手動でフックをテストするには：
 
@@ -47,7 +52,7 @@ git config core.hooksPath .githooks
 ```bash
 # パッケージング（S3バケットにアップロード）
 aws cloudformation package \
-  --template-file template.yaml \
+  --template-file main-template.yaml \
   --s3-bucket your-deployment-bucket \
   --output-template-file packaged.yaml
 
@@ -55,10 +60,10 @@ aws cloudformation package \
 aws cloudformation deploy \
   --template-file packaged.yaml \
   --stack-name my-lambda-stack \
-  --capabilities CAPABILITY_IAM
+  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND
 ```
 
-CloudFormation package コマンドは、テンプレート内のローカルパス参照（`Code: ./lambda_function/`など）を
+CloudFormation package コマンドは、テンプレート内のローカルパス参照（`Code: ./lambda_function/`や`TemplateURL: ./nested-template.yaml`など）を
 S3 バケットへの参照に自動的に変換します。
 
 ## 前提条件
